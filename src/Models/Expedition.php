@@ -2,8 +2,29 @@
 
 namespace Bmwsly\MondialRelayApi\Models;
 
+/**
+ * Modèle représentant une expédition Mondial Relay
+ *
+ * Ce modèle contient les informations de base d'une expédition créée
+ * via l'API Mondial Relay. Le numéro d'expédition est l'élément clé
+ * pour le suivi et la gestion des colis.
+ *
+ * @package Bmwsly\MondialRelayApi\Models
+ * @author Bryan Meurisse
+ * @version 1.1.0
+ */
 class Expedition
 {
+    /**
+     * @param string $expeditionNumber Numéro unique d'expédition (OBLIGATOIRE pour le suivi)
+     * @param string $agencyCode Code de l'agence Mondial Relay
+     * @param string $group Groupe de tri
+     * @param string $shuttle Code navette
+     * @param string $agency Nom de l'agence
+     * @param string $tourCode Code de tournée
+     * @param string $deliveryMode Mode de livraison (24R, 24L, etc.)
+     * @param array $barcodes Codes-barres associés à l'expédition
+     */
     public function __construct(
         public readonly string $expeditionNumber,
         public readonly string $agencyCode,
@@ -44,11 +65,21 @@ class Expedition
         ];
     }
 
+    /**
+     * Génère l'URL publique de suivi du colis
+     *
+     * @return string URL de suivi Mondial Relay
+     */
     public function getTrackingUrl(): string
     {
         return 'https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition='.$this->expeditionNumber;
     }
 
+    /**
+     * Retourne le libellé français du mode de livraison
+     *
+     * @return string Description du mode de livraison
+     */
     public function getDeliveryModeLabel(): string
     {
         $modes = [
@@ -63,11 +94,21 @@ class Expedition
         return $modes[$this->deliveryMode] ?? $this->deliveryMode;
     }
 
+    /**
+     * Vérifie si la livraison se fait en point relais
+     *
+     * @return bool true si livraison en point relais
+     */
     public function isRelayDelivery(): bool
     {
         return in_array($this->deliveryMode, ['24R', '24X']);
     }
 
+    /**
+     * Vérifie si la livraison se fait à domicile
+     *
+     * @return bool true si livraison à domicile
+     */
     public function isHomeDelivery(): bool
     {
         return in_array($this->deliveryMode, ['24L', 'LD1', 'LDS']);

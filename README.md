@@ -5,6 +5,48 @@
 
 Un package Laravel pour intégrer facilement l'API Mondial Relay dans vos applications e-commerce. Ce package se concentre sur les fonctionnalités essentielles : recherche de points relais, création d'expéditions et suivi de colis.
 
+## 🚀 Démarrage rapide
+
+```bash
+# 1. Installation
+composer require bmwsly/mondial-relay-api
+
+# 2. Configuration
+php artisan vendor:publish --provider="Bmwsly\MondialRelayApi\MondialRelayServiceProvider" --tag="config"
+
+# 3. Variables d'environnement (.env)
+MONDIAL_RELAY_ENSEIGNE=BDTEST13
+MONDIAL_RELAY_PRIVATE_KEY=TestAPI1key
+MONDIAL_RELAY_TEST_MODE=true
+
+# 4. Test de la configuration
+php test-api-minimal.php
+```
+
+```php
+// 5. Utilisation dans votre code Laravel
+use Bmwsly\MondialRelayApi\Facades\MondialRelayService;
+
+// Rechercher des points relais
+$relayPoints = MondialRelayService::findNearestRelayPoints('75001', 'FR', 5);
+
+// Créer une expédition avec étiquette PDF
+$expedition = MondialRelayService::createExpeditionWithLabel(
+    sender: $senderData,
+    recipient: $recipientData,
+    relayNumber: $relayPoints[0]->number,
+    weightInGrams: 1000,
+    deliveryMode: '24R'
+);
+
+// Télécharger l'étiquette
+$pdfContent = $expedition->downloadLabel('A4');
+file_put_contents('etiquette.pdf', $pdfContent);
+
+echo "✅ Expédition créée : " . $expedition->expeditionNumber;
+echo "🔗 Suivi : " . $expedition->getTrackingUrl();
+```
+
 ## Fonctionnalités
 
 - **Recherche de points relais** - Trouvez les points relais les plus proches
@@ -40,8 +82,22 @@ Ajoutez vos identifiants Mondial Relay dans votre fichier `.env` :
 MONDIAL_RELAY_ENSEIGNE=VOTRE_ENSEIGNE
 MONDIAL_RELAY_PRIVATE_KEY=VOTRE_CLE_PRIVEE
 MONDIAL_RELAY_TEST_MODE=true
-MONDIAL_RELAY_API_URL=https://api.mondialrelay.com/Web_Services.asmx
+MONDIAL_RELAY_API_URL=https://api.mondialrelay.com/WebService.asmx
 ```
+
+### Test de la configuration
+
+Pour vérifier que votre configuration fonctionne, utilisez le script de test inclus :
+
+```bash
+php test-api-minimal.php
+```
+
+Ce script teste :
+- ✅ La connexion à l'API
+- ✅ La recherche de points relais
+- ✅ La création d'expédition avec étiquette
+- ✅ Le téléchargement d'étiquette PDF
 
 ## Utilisation
 
@@ -360,6 +416,119 @@ $formatted = MondialRelayHelper::formatDistance(2.5); // "2.5km"
 
 // Obtenir l'URL de suivi
 $url = MondialRelayHelper::getTrackingUrl('12345678901234');
+```
+
+## Modèles de données
+
+Le package utilise des modèles de données typés pour une meilleure expérience développeur et une validation automatique.
+
+### RelayPoint
+
+Représente un point relais Mondial Relay avec toutes ses informations utiles :
+
+```php
+$relayPoint = $relayPoints[0]; // Premier point relais trouvé
+
+// Propriétés principales (OBLIGATOIRES pour les expéditions)
+echo $relayPoint->number;        // "123456" - Numéro unique du point relais
+echo $relayPoint->name;          // "TABAC DE LA GARE" - Nom commercial
+echo $relayPoint->address;       // "12 RUE DE LA GARE" - Adresse
+echo $relayPoint->postalCode;    // "75001" - Code postal
+echo $relayPoint->city;          // "PARIS" - Ville
+echo $relayPoint->country;       // "FR" - Code pays
+
+// Géolocalisation
+echo $relayPoint->latitude;      // 48.8566 - Latitude GPS
+echo $relayPoint->longitude;     // 2.3522 - Longitude GPS
+echo $relayPoint->distance;      // 1250 - Distance en mètres
+
+// Méthodes utiles
+echo $relayPoint->getFullAddress();           // "12 RUE DE LA GARE, 75001 PARIS"
+echo $relayPoint->getFormattedDistance();     // "1.3 km"
+echo $relayPoint->isOpenToday();              // true/false
+echo $relayPoint->isCurrentlyOpen();          // true/false
+echo $relayPoint->getGoogleMapsUrl();         // URL Google Maps
+
+// Horaires d'ouverture
+$todayHours = $relayPoint->getTodayOpeningHours();
+// [['open' => '0900', 'close' => '1800'], ['open' => '1400', 'close' => '1900']]
+```
+
+### ExpeditionWithLabel
+
+Représente une expédition avec son étiquette PDF générée :
+
+```php
+$expeditionWithLabel = MondialRelayService::createExpeditionWithLabel(...);
+
+// Propriétés principales
+echo $expeditionWithLabel->expeditionNumber;  // "12345678901234" - Numéro unique
+$label = $expeditionWithLabel->label;         // Objet Label
+
+// Méthodes utiles
+echo $expeditionWithLabel->getTrackingUrl();  // URL de suivi public
+echo $expeditionWithLabel->getLabelUrl('A4'); // URL étiquette A4
+
+// Téléchargement d'étiquettes
+$pdfContent = $expeditionWithLabel->downloadLabel('A4');
+$expeditionWithLabel->saveLabelToFile('etiquette.pdf', 'A4');
+
+// Tous les formats disponibles
+$allUrls = $expeditionWithLabel->getAllLabelUrls();
+// ['A4' => 'url...', 'A5' => 'url...', '10x15' => 'url...']
+```
+
+### Label
+
+Représente une étiquette PDF avec ses différents formats :
+
+```php
+$label = $expeditionWithLabel->label;
+
+// URLs de téléchargement
+echo $label->labelUrlA4;      // URL format A4
+echo $label->labelUrlA5;      // URL format A5
+echo $label->labelUrl10x15;   // URL format 10x15
+
+// Méthodes utiles
+echo $label->getUrlByFormat('A4');           // URL pour format spécifique
+$formats = $label->getAvailableFormats();    // ['A4', 'A5', '10x15']
+$hasA4 = $label->hasFormat('A4');            // true
+
+// Informations détaillées sur les formats
+$formatInfo = $label->getFormatInfo();
+/*
+[
+    'A4' => [
+        'name' => 'A4',
+        'description' => 'Format A4 standard (210x297mm)',
+        'url' => 'https://...',
+        'recommended_for' => 'Impression bureau standard'
+    ],
+    // ...
+]
+*/
+```
+
+### TrackingInfo
+
+Informations de suivi d'un colis :
+
+```php
+$trackingInfo = MondialRelayService::trackPackage('12345678901234');
+
+echo $trackingInfo->expeditionNumber;  // Numéro d'expédition
+echo $trackingInfo->status;            // Code statut (ex: "24")
+echo $trackingInfo->statusLabel;       // Libellé français du statut
+echo $trackingInfo->relayNumber;       // Numéro du point relais
+echo $trackingInfo->relayName;         // Nom du point relais
+
+// Événements de suivi
+foreach ($trackingInfo->trackingEvents as $event) {
+    echo $event->getFormattedDateTime(); // "22/08/2024 14:30"
+    echo $event->label;                  // "Colis pris en charge"
+    echo $event->location;               // "PARIS"
+}
 ```
 
 ## Formats d'étiquettes
