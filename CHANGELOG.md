@@ -2,6 +2,14 @@
 
 All notable changes to `mondial-relay-api` will be documented in this file.
 
+## [1.1.1] - 2025-08-23
+
+### Enhanced
+- **Error Handling**: Added comprehensive error messages for all Mondial Relay API status codes (0-99)
+- **Debugging**: Improved error messages in French for better debugging and user feedback
+- **API Coverage**: Complete coverage of all API response scenarios including tracking status codes (80-83)
+- **User Experience**: More descriptive error messages instead of generic "Unknown error" responses
+
 ## [1.1.0] - 2025-08-22
 
 ### Added
