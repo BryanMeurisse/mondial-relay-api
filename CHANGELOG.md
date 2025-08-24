@@ -2,6 +2,24 @@
 
 All notable changes to `mondial-relay-api` will be documented in this file.
 
+## [1.2.0] - 2025-08-24
+
+### Removed
+- **BREAKING CHANGE**: Removed unused `code_marque` parameter from configuration and constructor
+- **Configuration Cleanup**: Removed `MONDIAL_RELAY_CODE_MARQUE` environment variable requirement
+- **Code Cleanup**: Removed debug Log statements from MondialRelayClient
+
+### Enhanced
+- **Simplified Configuration**: Only `enseigne` and `private_key` are now required for API functionality
+- **Cleaner Codebase**: Removed unused parameters and debug code for better maintainability
+- **Verified Functionality**: All API features confirmed working without code_marque parameter
+
+### Migration Guide
+If upgrading from v1.1.x:
+1. Remove `MONDIAL_RELAY_CODE_MARQUE` from your `.env` file
+2. Remove `code_marque` from your `config/mondialrelay.php` if manually configured
+3. Update any direct `MondialRelayClient` instantiation to remove the `$codeMarque` parameter
+
 ## [1.1.1] - 2025-08-23
 
 ### Enhanced
