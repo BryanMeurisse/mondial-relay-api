@@ -72,12 +72,14 @@ class MondialRelayClient
 
         try {
             $response = $this->soapClient->WSI4_PointRelais_Recherche($searchParams);
+            $response = $response->WSI4_PointRelais_RechercheResult ?? $response;
 
             if ($response->STAT !== '0') {
                 throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
             }
 
-            return $this->formatRelayPoints($response);
+            $relayPoints = $this->formatRelayPoints($response);
+            return $relayPoints;
         } catch (\Exception $e) {
             throw new MondialRelayException('API call failed: '.$e->getMessage());
         }
@@ -116,13 +118,13 @@ class MondialRelayClient
             'Dest_Tel1' => $params['recipient']['phone'],
             'Dest_Tel2' => '',
             'Dest_Mail' => $params['recipient']['email'] ?? '',
-            'Poids' => $params['weight'],
-            'Longueur' => $params['length'] ?? '',
+            'Poids' => (string) $params['weight'], // Convert to string like in working test
+            'Longueur' => $params['length'] ?? '20', // Default length like in working test
             'Taille' => '',
             'NbColis' => $params['package_count'] ?? '1',
             'CRT_Valeur' => '0',
             'CRT_Devise' => 'EUR',
-            'Exp_Valeur' => $params['declared_value'] ?? '0',
+            'Exp_Valeur' => $params['declared_value'] ?? '50', // Default value like in working test
             'Exp_Devise' => 'EUR',
             'COL_Rel_Pays' => '',
             'COL_Rel' => '',
@@ -149,6 +151,7 @@ class MondialRelayClient
 
         try {
             $response = $this->soapClient->WSI2_CreationExpedition($expeditionParams);
+            $response = $response->WSI2_CreationExpeditionResult ?? $response;
 
             if ($response->STAT !== '0') {
                 throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
@@ -169,18 +172,13 @@ class MondialRelayClient
 
         $expeditionParams = $this->buildExpeditionParams($params);
 
-        // Add optional text field for label (articles description)
-        if (isset($params['articles_description'])) {
-            $expeditionParams['Texte'] = $params['articles_description'];
-        }
+        $expeditionParams['Security'] = $this->generateSecurityKey($expeditionParams);
 
-        // Don't include 'Texte' field in security hash calculation
-        $securityParams = $expeditionParams;
-        unset($securityParams['Texte']);
-        $expeditionParams['Security'] = $this->generateSecurityKey($securityParams);
+        $expeditionParams['Texte'] = $params['articles_description'] ?? 'Produit e-commerce';
 
         try {
             $response = $this->soapClient->WSI2_CreationEtiquette($expeditionParams);
+            $response = $response->WSI2_CreationEtiquetteResult ?? $response;
 
             if ($response->STAT !== '0') {
                 throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
@@ -213,6 +211,7 @@ class MondialRelayClient
 
         try {
             $response = $this->soapClient->WSI3_GetEtiquettes($labelParams);
+            $response = $response->WSI3_GetEtiquettesResult ?? $response;
 
             if ($response->STAT !== '0') {
                 throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
@@ -262,6 +261,7 @@ class MondialRelayClient
 
         try {
             $response = $this->soapClient->WSI2_TracingColisDetaille($trackingParams);
+            $response = $response->WSI2_TracingColisDetailleResult ?? $response;
 
             if ($response->STAT !== '0' && !in_array($response->STAT, ['80', '81', '82', '83'])) {
                 throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
@@ -308,7 +308,7 @@ class MondialRelayClient
     private function validateExpeditionParams(array $params): void
     {
         $validator = Validator::make($params, [
-            'delivery_mode' => 'required|string|in:24R,24L,24X,LD1,LDS,DRI',
+            'delivery_mode' => 'required|string|in:24R,24L,24X,LD1,LDS,DRI,HOM',
             'weight' => 'required|integer|min:1',
             'sender.name' => 'required|string|max:32',
             'sender.address' => 'required|string|max:32',
@@ -322,8 +322,8 @@ class MondialRelayClient
             'recipient.postal_code' => 'required|string|regex:/^[0-9]{5}$/',
             'recipient.country' => 'required|string|size:2',
             'recipient.phone' => 'required|string',
-            'relay_number' => 'required_if:delivery_mode,24R,24L,24X|string|regex:/^[0-9]{6}$/',
-            'relay_country' => 'required_if:delivery_mode,24R,24L,24X|string|size:2',
+            'relay_number' => 'required_if:delivery_mode,24R,24X|string|regex:/^[0-9]{6}$/',
+            'relay_country' => 'required_if:delivery_mode,24R,24X|string|size:2',
         ]);
 
         if ($validator->fails()) {
@@ -337,13 +337,13 @@ class MondialRelayClient
      */
     private function formatRelayPoints($response): array
     {
-        if (!isset($response->PointsRelais) || !is_array($response->PointsRelais)) {
+        if (!isset($response->PointsRelais) || !is_array($response->PointsRelais->PointRelais_Details)) {
             return [];
         }
 
         return array_map(
             fn ($relayPoint) => RelayPoint::fromApiResponse($relayPoint),
-            $response->PointsRelais
+            $response->PointsRelais->PointRelais_Details
         );
     }
 
