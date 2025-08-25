@@ -1,7 +1,7 @@
 {
     "name": "bmwsly/mondial-relay-api",
     "description": "Laravel package for Mondial Relay API integration focused on the essential features for your ecommerce website",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "type": "library",
     "autoload": {
         "psr-4": {
