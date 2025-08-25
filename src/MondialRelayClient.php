@@ -2,12 +2,15 @@
 
 namespace Bmwsly\MondialRelayApi;
 
+use Bmwsly\MondialRelayApi\Debug\MondialRelayDebugger;
 use Bmwsly\MondialRelayApi\Exceptions\MondialRelayException;
+use Bmwsly\MondialRelayApi\Helpers\MondialRelayHelper;
 use Bmwsly\MondialRelayApi\Models\Expedition;
 use Bmwsly\MondialRelayApi\Models\ExpeditionWithLabel;
 use Bmwsly\MondialRelayApi\Models\LabelBatch;
 use Bmwsly\MondialRelayApi\Models\RelayPoint;
 use Bmwsly\MondialRelayApi\Models\TrackingInfo;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use SoapClient;
 
@@ -29,13 +32,15 @@ class MondialRelayClient
     private $testMode;
     private $apiUrl;
     private $soapClient;
+    private ?MondialRelayDebugger $debugger;
 
-    public function __construct(string $enseigne, string $privateKey, bool $testMode = true, ?string $apiUrl = null)
+    public function __construct(string $enseigne, string $privateKey, bool $testMode = true, ?string $apiUrl = null, ?MondialRelayDebugger $debugger = null)
     {
         $this->enseigne = $enseigne;
         $this->privateKey = $privateKey;
         $this->testMode = $testMode;
         $this->apiUrl = $apiUrl ?? 'https://api.mondialrelay.com/Web_Services.asmx';
+        $this->debugger = $debugger;
 
         $this->soapClient = new SoapClient($this->apiUrl.'?WSDL', [
             'encoding' => 'UTF-8',
@@ -71,14 +76,15 @@ class MondialRelayClient
         $searchParams['Security'] = $this->generateSecurityKey($searchParams);
 
         try {
-            $response = $this->soapClient->WSI4_PointRelais_Recherche($searchParams);
+            $response = $this->callSoapMethod('WSI4_PointRelais_Recherche', $searchParams);
             $response = $response->WSI4_PointRelais_RechercheResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
+                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'searchRelayPoints']);
             }
 
             $relayPoints = $this->formatRelayPoints($response);
+
             return $relayPoints;
         } catch (\Exception $e) {
             throw new MondialRelayException('API call failed: '.$e->getMessage());
@@ -97,10 +103,10 @@ class MondialRelayClient
             'NDossier' => $params['order_number'] ?? '',
             'NClient' => $params['customer_id'] ?? '',
             'Expe_Langage' => 'FR',
-            'Expe_Ad1' => $params['sender']['name'],
-            'Expe_Ad2' => $params['sender']['company'] ?? '',
-            'Expe_Ad3' => $params['sender']['address'],
-            'Expe_Ad4' => $params['sender']['address_complement'] ?? '',
+            'Expe_Ad1' => $params['sender']['line1'] ?? '',
+            'Expe_Ad2' => $params['sender']['line2'] ?? '',
+            'Expe_Ad3' => $params['sender']['line3'] ?? '',
+            'Expe_Ad4' => $params['sender']['line4'] ?? '',
             'Expe_Ville' => $params['sender']['city'],
             'Expe_CP' => $params['sender']['postal_code'],
             'Expe_Pays' => $params['sender']['country'],
@@ -108,10 +114,10 @@ class MondialRelayClient
             'Expe_Tel2' => '',
             'Expe_Mail' => $params['sender']['email'] ?? '',
             'Dest_Langage' => 'FR',
-            'Dest_Ad1' => $params['recipient']['name'],
-            'Dest_Ad2' => $params['recipient']['company'] ?? '',
-            'Dest_Ad3' => $params['recipient']['address'],
-            'Dest_Ad4' => $params['recipient']['address_complement'] ?? '',
+            'Dest_Ad1' => $params['recipient']['line1'] ?? '',
+            'Dest_Ad2' => $params['recipient']['line2'] ?? '',
+            'Dest_Ad3' => $params['recipient']['line3'] ?? '',
+            'Dest_Ad4' => $params['recipient']['line4'] ?? '',
             'Dest_Ville' => $params['recipient']['city'],
             'Dest_CP' => $params['recipient']['postal_code'],
             'Dest_Pays' => $params['recipient']['country'],
@@ -128,7 +134,7 @@ class MondialRelayClient
             'Exp_Devise' => 'EUR',
             'COL_Rel_Pays' => '',
             'COL_Rel' => '',
-            'LIV_Rel_Pays' => $params['relay_country'] ?? '',
+            'LIV_Rel_Pays' => isset($params['relay_number']) && !empty($params['relay_number']) ? ($params['relay_country'] ?? 'FR') : '',
             'LIV_Rel' => $params['relay_number'] ?? '',
             'TAvisage' => '',
             'TReprise' => '',
@@ -150,11 +156,11 @@ class MondialRelayClient
         $expeditionParams['Security'] = $this->generateSecurityKey($expeditionParams);
 
         try {
-            $response = $this->soapClient->WSI2_CreationExpedition($expeditionParams);
+            $response = $this->callSoapMethod('WSI2_CreationExpedition', $expeditionParams);
             $response = $response->WSI2_CreationExpeditionResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
+                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'createExpedition']);
             }
 
             return Expedition::fromApiResponse($response);
@@ -172,16 +178,18 @@ class MondialRelayClient
 
         $expeditionParams = $this->buildExpeditionParams($params);
 
+        Log::info('---- Expedition params: '.json_encode($expeditionParams));
+
         $expeditionParams['Security'] = $this->generateSecurityKey($expeditionParams);
 
         $expeditionParams['Texte'] = $params['articles_description'] ?? 'Produit e-commerce';
 
         try {
-            $response = $this->soapClient->WSI2_CreationEtiquette($expeditionParams);
+            $response = $this->callSoapMethod('WSI2_CreationEtiquette', $expeditionParams);
             $response = $response->WSI2_CreationEtiquetteResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
+                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'createExpeditionWithLabel']);
             }
 
             $baseUrl = str_replace('/Web_Services.asmx', '', $this->apiUrl);
@@ -210,11 +218,11 @@ class MondialRelayClient
         $labelParams['Security'] = $this->generateSecurityKey($labelParams);
 
         try {
-            $response = $this->soapClient->WSI3_GetEtiquettes($labelParams);
+            $response = $this->callSoapMethod('WSI3_GetEtiquettes', $labelParams);
             $response = $response->WSI3_GetEtiquettesResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
+                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'getLabelBatch']);
             }
 
             $baseUrl = str_replace('/Web_Services.asmx', '', $this->apiUrl);
@@ -260,11 +268,11 @@ class MondialRelayClient
         $trackingParams['Security'] = $this->generateSecurityKey($trackingParams);
 
         try {
-            $response = $this->soapClient->WSI2_TracingColisDetaille($trackingParams);
+            $response = $this->callSoapMethod('WSI2_TracingColisDetaille', $trackingParams);
             $response = $response->WSI2_TracingColisDetailleResult ?? $response;
 
             if ($response->STAT !== '0' && !in_array($response->STAT, ['80', '81', '82', '83'])) {
-                throw new MondialRelayException($this->getErrorMessage($response->STAT), (int) $response->STAT);
+                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'trackPackage']);
             }
 
             return TrackingInfo::fromApiResponse($response);
@@ -310,14 +318,14 @@ class MondialRelayClient
         $validator = Validator::make($params, [
             'delivery_mode' => 'required|string|in:24R,24L,24X,LD1,LDS,DRI,HOM',
             'weight' => 'required|integer|min:1',
-            'sender.name' => 'required|string|max:32',
-            'sender.address' => 'required|string|max:32',
+            'sender.line1' => 'required|string|max:32',
+            'sender.line3' => 'required|string|max:32',
             'sender.city' => 'required|string|max:26',
             'sender.postal_code' => 'required|string|regex:/^[0-9]{5}$/',
             'sender.country' => 'required|string|size:2',
             'sender.phone' => 'required|string',
-            'recipient.name' => 'required|string|max:32',
-            'recipient.address' => 'required|string|max:32',
+            'recipient.line1' => 'required|string|max:32',
+            'recipient.line3' => 'required|string|max:32',
             'recipient.city' => 'required|string|max:26',
             'recipient.postal_code' => 'required|string|regex:/^[0-9]{5}$/',
             'recipient.country' => 'required|string|size:2',
@@ -348,87 +356,122 @@ class MondialRelayClient
     }
 
     /**
-     * Get error message from status code.
+     * Call SOAP method with debug logging.
      */
-    private function getErrorMessage(string $statusCode): string
+    private function callSoapMethod(string $method, array $params)
     {
-        $errorMessages = [
-            "0" => "Opération effectuée avec succès",
-            "1" => "Enseigne invalide",
-            "2"=> "Numéro d'enseigne vide ou inexistant",
-            "3"=> "Numéro de compte enseigne invalide",
-            "5"=> "Numéro de dossier enseigne invalide",
-            "7"=> "Numéro de client enseigne invalide",
-            "8"=> "Mot de passe ou hachage invalide",
-            "9"=> "Ville non reconnu ou non unique",
-            "10"=> "Type de collecte invalide",
-            "11"=> "Numéro de Relais de Collecte invalide",
-            "12"=> "Pays de Relais de collecte invalide",
-            "13"=> "Type de livraison invalide",
-            "14"=> "Numéro de Relais de livraison invalide",
-            "15"=> "Pays de Relais de livraison invalide",
-            "20"=> "Poids du colis invalide",
-            "21"=> "Taille (Longueur + Hauteur) du colis invalide",
-            "22"=> "Taille du Colis invalide",
-            "24"=> "Numéro d'expédition ou de suivi invalide",
-            "26"=> "Temps de montage invalide",
-            "27"=> "Mode de collecte ou de livraison invalide",
-            "28"=> "Mode de collecte invalide",
-            "29"=> "Mode de livraison invalide",
-            "30"=> "Adresse (L1) invalide",
-            "31"=> "Adresse (L2) invalide",
-            "33"=> "Adresse (L3) invalide",
-            "34"=> "Adresse (L4) invalide",
-            "35"=> "Ville invalide",
-            "36"=> "Code postal invalide",
-            "37"=> "Pays invalide",
-            "38"=> "Numéro de téléphone invalide",
-            "39"=> "Adresse e-mail invalide",
-            "40"=> "Paramètres manquants",
-            "42"=> "Montant CRT invalide",
-            "43"=> "Devise CRT invalide",
-            "44"=> "Valeur du colis invalide",
-            "45"=> "Devise de la valeur du colis invalide",
-            "46"=> "Plage de numéro d'expédition épuisée",
-            "47"=> "Nombre de colis invalide",
-            "48"=> "Multi-Colis Relais Interdit",
-            "Code"=> "retour Libellé",
-            "49"=> "Action invalide",
-            "60"=> "Champ texte libre invalide (Ce code erreur n'est pas invalidant)",
-            "61"=> "Top avisage invalide",
-            "62"=> "Instruction de livraison invalide",
-            "63"=> "Assurance invalide",
-            "64"=> "Temps de montage invalide",
-            "65"=> "Top rendez-vous invalide",
-            "66"=> "Top reprise invalide",
-            "67"=> "Latitude invalide",
-            "68"=> "Longitude invalide",
-            "69"=> "Code Enseigne invalide",
-            "70"=> "Numéro de Point Relais invalide",
-            "71"=> "Nature de point de vente non valide",
-            "74"=> "Langue invalide",
-            "78"=> "Pays de Collecte invalide",
-            "79"=> "Pays de Livraison invalide",
-            "80"=> "Code tracing : Colis enregistré",
-            "81"=> "Code tracing : Colis en traitement chez Mondial Relay",
-            "82"=> "Code tracing : Colis livré",
-            "83"=> "Code tracing : Anomalie",
-            "84"=> "(Réservé Code Tracing)",
-            "85"=> "(Réservé Code Tracing)",
-            "86"=> "(Réservé Code Tracing)",
-            "87"=> "(Réservé Code Tracing)",
-            "88"=> "(Réservé Code Tracing)",
-            "89"=> "(Réservé Code Tracing)",
-            "92"=> "Le code pays du destinataire et le code pays du Point Relais doivent être identiques. Ou Solde insuffisant (comptes prépayés)",
-            "93"=> "Aucun élément retourné par le plan de tri. Si vous effectuez une collecte ou une livraison en Point Relais, vérifiez que les Point Relais sont bien disponibles. Si vous effectuez une livraison à domicile, il est probable que le code postal que vous avez indiqué n'existe pas.",
-            "94"=> "Colis Inexistant",
-            "95"=> "Compte Enseigne non activé",
-            "96"=> "Type d'enseigne incorrect en Base",
-            "97"=> "Clé de sécurité invalide, Cf. : § « Génération de la clé de sécurité »",
-            "98"=> "Erreur générique (Paramètres invalides).Cette erreur masque une autre erreur de la liste et ne peut se produire que dans le cas où lecompte utilisé est en mode « Production ».Cf. : § « Fonctionnement normal et débogage »",
-            "99"=> "Erreur générique du service.Cette erreur peut être due à un problème technique du service. Veuillez notifier cette erreur à Mondial Relay en précisant la date et l'heure de la requête ainsi que les paramètres envoyés afin d'effectuer une vérification."
-        ];
+        // Log request if debugger is available
+        if ($this->debugger) {
+            $this->debugger->logSoapRequest($method, $params, $this->apiUrl);
+        }
 
-        return $errorMessages[$statusCode] ?? 'Unknown error (Code: '.$statusCode.')';
+        try {
+            // Call the SOAP method
+            $response = $this->soapClient->$method($params);
+
+            // Log response if debugger is available
+            if ($this->debugger) {
+                $this->debugger->logSoapResponse(
+                    $method,
+                    $response,
+                    $this->soapClient->__getLastRequest(),
+                    $this->soapClient->__getLastResponse()
+                );
+            }
+
+            return $response;
+        } catch (\Exception $e) {
+            // Log error if debugger is available
+            if ($this->debugger) {
+                $this->debugger->logError("SOAP call failed for method {$method}", [
+                    'method' => $method,
+                    'params' => $params,
+                    'error' => $e->getMessage(),
+                    'last_request' => $this->soapClient->__getLastRequest(),
+                    'last_response' => $this->soapClient->__getLastResponse(),
+                ]);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Get debugger instance.
+     */
+    public function getDebugger(): ?MondialRelayDebugger
+    {
+        return $this->debugger;
+    }
+
+    /**
+     * Set debugger instance.
+     */
+    public function setDebugger(?MondialRelayDebugger $debugger): self
+    {
+        $this->debugger = $debugger;
+
+        return $this;
+    }
+
+    /**
+     * Generate basic tracking URL for an expedition.
+     */
+    public function generateTrackingUrl(string $expeditionNumber): string
+    {
+        $baseUrl = 'https://www.mondialrelay.fr/suivi-de-colis/';
+
+        return $baseUrl.'?numeroExpedition='.$expeditionNumber;
+    }
+
+    /**
+     * Generate secure connect tracing link for professional extranet.
+     * Requires API V2 credentials (user/password).
+     *
+     * @param string $expeditionNumber Expedition number (8 digits)
+     * @param string $userLogin Login to connect to the system
+     * @return string Secure URL for professional tracking
+     */
+    public function generateConnectTracingLink(string $expeditionNumber, string $userLogin): string
+    {
+        // This requires API V2 password which is not available in SOAP client
+        // We'll need to get it from config or pass it as parameter
+        $password = config('mondialrelay.api_v2.password', '');
+
+        if (empty($password)) {
+            throw new MondialRelayException('API V2 password is required for connect tracing links. Please configure MONDIAL_RELAY_API_V2_PASSWORD in your .env file.');
+        }
+
+        return MondialRelayHelper::getConnectTracingLink($expeditionNumber, $userLogin, $this->enseigne, $password);
+    }
+
+    /**
+     * Generate secure permalink tracing link for public tracking.
+     *
+     * @param string $expeditionNumber Expedition number (8 digits)
+     * @param string $language Language code (default: 'fr')
+     * @param string $country Country code (default: 'fr')
+     * @return string Secure permalink URL
+     */
+    public function generatePermalinkTracingLink(
+        string $expeditionNumber,
+        string $language = 'fr',
+        string $country = 'fr'
+    ): string {
+        // We need the brand ID from config
+        $brandId = config('mondialrelay.brand_id', '');
+
+        if (empty($brandId)) {
+            throw new MondialRelayException('Brand ID is required for permalink tracing links. Please configure MONDIAL_RELAY_BRAND_ID in your .env file.');
+        }
+
+        return MondialRelayHelper::getPermalinkTracingLink(
+            $expeditionNumber,
+            $this->enseigne,
+            $brandId,
+            $this->privateKey,
+            $language,
+            $country
+        );
     }
 }

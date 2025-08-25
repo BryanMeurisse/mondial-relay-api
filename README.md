@@ -5,6 +5,21 @@
 
 Un package Laravel pour intégrer facilement l'API Mondial Relay dans vos applications e-commerce. Ce package se concentre sur les fonctionnalités essentielles : recherche de points relais, création d'expéditions et suivi de colis.
 
+## ✨ Nouvelles Fonctionnalités v2.0
+
+🎉 **Version majeure avec de nombreuses améliorations basées sur l'API PHP officielle !**
+
+- **Gestion d'erreurs complète** - 99+ codes d'erreur avec messages explicites et actions suggérées
+- **Mode debug avancé** - Logging détaillé des requêtes/réponses avec masquage des données sensibles
+- **Validation renforcée** - Règles strictes basées sur l'API officielle pour tous les paramètres
+- **Support API V2 (REST)** - Client hybride SOAP/REST avec basculement automatique
+- **Configuration avancée** - Sécurité, cache, timeouts, retry, environnements
+- **Gestion multi-colis** - Support complet des expéditions avec plusieurs colis
+- **Commande de diagnostic** - `php artisan mondialrelay:diagnose` pour tester votre configuration
+- **DTOs enrichis** - Modèles complets avec toutes les propriétés de l'API
+
+👉 **[Voir toutes les nouvelles fonctionnalités](NOUVELLES-FONCTIONNALITES.md)**
+
 ## 🚀 Démarrage rapide
 
 ```bash
@@ -19,8 +34,8 @@ MONDIAL_RELAY_ENSEIGNE=BDTEST13
 MONDIAL_RELAY_PRIVATE_KEY=TestAPI1key
 MONDIAL_RELAY_TEST_MODE=true
 
-# 4. Test de la configuration
-php test-api-minimal.php
+# 4. Test de la configuration (NOUVEAU!)
+php artisan mondialrelay:diagnose --test-api
 ```
 
 ```php
@@ -81,8 +96,14 @@ Ajoutez vos identifiants Mondial Relay dans votre fichier `.env` :
 ```env
 MONDIAL_RELAY_ENSEIGNE=VOTRE_ENSEIGNE
 MONDIAL_RELAY_PRIVATE_KEY=VOTRE_CLE_PRIVEE
+MONDIAL_RELAY_BRAND_ID=VOTRE_BRAND_ID
 MONDIAL_RELAY_TEST_MODE=true
 MONDIAL_RELAY_API_URL=https://api.mondialrelay.com/WebService.asmx
+
+# Pour les liens de tracking sécurisés (optionnel)
+MONDIAL_RELAY_API_V2_ENABLED=true
+MONDIAL_RELAY_API_V2_USER=VOTRE_USER_API_V2
+MONDIAL_RELAY_API_V2_PASSWORD=VOTRE_PASSWORD_API_V2
 ```
 
 ### Test de la configuration
@@ -373,6 +394,18 @@ foreach ($tracking->trackingEvents as $event) {
         echo "  Lieu: " . $event->location . "\n";
     }
 }
+
+// Génération d'URLs de suivi
+$basicUrl = MondialRelayService::generateTrackingUrl('12345678901234');
+echo "URL publique: " . $basicUrl . "\n";
+
+// Lien sécurisé pour l'extranet professionnel (nécessite API V2)
+$connectUrl = MondialRelayService::generateConnectTracingLink('12345678901234', 'user@example.com');
+echo "URL extranet: " . $connectUrl . "\n";
+
+// Lien permalink sécurisé pour le suivi public
+$permalinkUrl = MondialRelayService::generatePermalinkTracingLink('12345678901234', 'fr', 'fr');
+echo "URL permalink: " . $permalinkUrl . "\n";
 ```
 
 #### Avec le client bas niveau

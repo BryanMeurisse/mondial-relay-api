@@ -2,13 +2,14 @@
 
 namespace Bmwsly\MondialRelayApi\Models;
 
+use Illuminate\Support\Facades\Log;
+
 /**
- * Modèle représentant un point relais Mondial Relay
+ * Modèle représentant un point relais Mondial Relay.
  *
  * Ce modèle contient toutes les informations nécessaires pour identifier
  * et utiliser un point relais dans vos expéditions.
  *
- * @package Bmwsly\MondialRelayApi\Models
  * @author Bryan Meurisse
  * @version 1.1.0
  */
@@ -41,12 +42,11 @@ class RelayPoint
         public readonly array $openingHours,
         public readonly ?string $photoUrl = null,
         public readonly ?string $mapUrl = null,
-    ) {
-    }
+    ) {}
 
     public static function fromApiResponse(object $relayPoint): self
     {
-        return new self(
+        $openingHours = new self(
             number: $relayPoint->Num,
             name: trim("{$relayPoint->LgAdr1} {$relayPoint->LgAdr2}"),
             address: trim("{$relayPoint->LgAdr3} {$relayPoint->LgAdr4}"),
@@ -57,17 +57,19 @@ class RelayPoint
             longitude: (float) $relayPoint->Longitude,
             distance: (float) $relayPoint->Distance,
             openingHours: [
-                'monday' => self::parseOpeningHours($relayPoint->Horaire_Lundi ?? []),
-                'tuesday' => self::parseOpeningHours($relayPoint->Horaire_Mardi ?? []),
-                'wednesday' => self::parseOpeningHours($relayPoint->Horaire_Mercredi ?? []),
-                'thursday' => self::parseOpeningHours($relayPoint->Horaire_Jeudi ?? []),
-                'friday' => self::parseOpeningHours($relayPoint->Horaire_Vendredi ?? []),
-                'saturday' => self::parseOpeningHours($relayPoint->Horaire_Samedi ?? []),
-                'sunday' => self::parseOpeningHours($relayPoint->Horaire_Dimanche ?? []),
+                'monday' => self::parseOpeningHours($relayPoint->Horaires_Lundi ?? []),
+                'tuesday' => self::parseOpeningHours($relayPoint->Horaires_Mardi ?? []),
+                'wednesday' => self::parseOpeningHours($relayPoint->Horaires_Mercredi ?? []),
+                'thursday' => self::parseOpeningHours($relayPoint->Horaires_Jeudi ?? []),
+                'friday' => self::parseOpeningHours($relayPoint->Horaires_Vendredi ?? []),
+                'saturday' => self::parseOpeningHours($relayPoint->Horaires_Samedi ?? []),
+                'sunday' => self::parseOpeningHours($relayPoint->Horaires_Dimanche ?? []),
             ],
             photoUrl: $relayPoint->URL_Photo ?? null,
             mapUrl: $relayPoint->URL_Plan ?? null,
         );
+
+        return $openingHours;
     }
 
     public function toArray(): array
@@ -89,7 +91,7 @@ class RelayPoint
     }
 
     /**
-     * Retourne l'adresse complète formatée du point relais
+     * Retourne l'adresse complète formatée du point relais.
      *
      * @return string Adresse complète (adresse, code postal, ville)
      */
@@ -99,7 +101,7 @@ class RelayPoint
     }
 
     /**
-     * Vérifie si le point relais est ouvert aujourd'hui
+     * Vérifie si le point relais est ouvert aujourd'hui.
      *
      * @return bool true si ouvert aujourd'hui, false sinon
      */
@@ -122,7 +124,7 @@ class RelayPoint
     }
 
     /**
-     * Retourne les horaires d'ouverture d'aujourd'hui
+     * Retourne les horaires d'ouverture d'aujourd'hui.
      *
      * @return array Horaires du jour (format: [['open' => '0900', 'close' => '1800'], ...])
      */
@@ -143,7 +145,7 @@ class RelayPoint
     }
 
     /**
-     * Retourne la distance formatée en kilomètres
+     * Retourne la distance formatée en kilomètres.
      *
      * @return string Distance formatée (ex: "1.5 km")
      */
@@ -157,7 +159,7 @@ class RelayPoint
     }
 
     /**
-     * Vérifie si le point relais est actuellement ouvert
+     * Vérifie si le point relais est actuellement ouvert.
      *
      * @return bool true si ouvert maintenant, false sinon
      */
@@ -184,7 +186,7 @@ class RelayPoint
     }
 
     /**
-     * Retourne les coordonnées GPS sous forme de tableau
+     * Retourne les coordonnées GPS sous forme de tableau.
      *
      * @return array ['latitude' => float, 'longitude' => float]
      */
@@ -197,7 +199,7 @@ class RelayPoint
     }
 
     /**
-     * Génère une URL Google Maps pour le point relais
+     * Génère une URL Google Maps pour le point relais.
      *
      * @return string URL Google Maps
      */
@@ -208,13 +210,21 @@ class RelayPoint
 
     private static function parseOpeningHours($hours): array
     {
-        if (!is_array($hours)) {
-            return [];
-        }
 
-        return array_map(fn ($slot) => [
-            'open' => $slot->string[0] ?? '',
-            'close' => $slot->string[1] ?? '',
-        ], $hours);
+        $open = $hours->string[0] ?? null;
+        $close = $hours->string[1] ?? null;
+
+        $is24h = $open === '0001' && $close === '2359';
+
+
+        $openingHours = [
+            "is24h" => $is24h,
+            "open" => substr($hours->string[0], 0, 2) . ':' . substr($hours->string[0], 2, 2),
+            "close" => substr($hours->string[1], 0, 2) . ':' . substr($hours->string[1], 2, 2),
+        ];
+
+
+        return $openingHours;
+
     }
 }

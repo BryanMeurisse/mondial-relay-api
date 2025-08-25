@@ -7,9 +7,13 @@ use Bmwsly\MondialRelayApi\Helpers\MondialRelayHelper;
 use Bmwsly\MondialRelayApi\Models\Expedition;
 use Bmwsly\MondialRelayApi\Models\ExpeditionWithLabel;
 use Bmwsly\MondialRelayApi\Models\LabelBatch;
+use Bmwsly\MondialRelayApi\Models\MultiParcelExpedition;
+use Bmwsly\MondialRelayApi\Models\Parcel;
 use Bmwsly\MondialRelayApi\Models\RelayPoint;
 use Bmwsly\MondialRelayApi\Models\TrackingInfo;
 use Bmwsly\MondialRelayApi\MondialRelayClient;
+use Bmwsly\MondialRelayApi\Validation\MondialRelayValidator;
+use Illuminate\Support\Facades\Log;
 
 class MondialRelayService
 {
@@ -28,12 +32,15 @@ class MondialRelayService
         int $maxResults = 10,
         int $searchRadius = 20
     ): array {
-        if (!MondialRelayHelper::isValidFrenchPostalCode($postalCode)) {
-            throw new MondialRelayException('Code postal invalide');
+        // Use new strict validation
+        $postalErrors = MondialRelayValidator::validatePostalCode($postalCode, $country);
+        if (!empty($postalErrors)) {
+            throw MondialRelayException::validation('Code postal invalide: '.implode(', ', $postalErrors));
         }
 
-        if (!MondialRelayHelper::isValidCountryCode($country)) {
-            throw new MondialRelayException('Code pays invalide');
+        $countryErrors = MondialRelayValidator::validateCountryCode($country);
+        if (!empty($countryErrors)) {
+            throw MondialRelayException::validation('Code pays invalide: '.implode(', ', $countryErrors));
         }
 
         return $this->client->searchRelayPoints([
@@ -75,9 +82,10 @@ class MondialRelayService
         string $deliveryMode = '24R',
         ?string $orderNumber = null
     ): Expedition {
-        // Validate relay number
-        if (!MondialRelayHelper::isValidRelayNumber($relayNumber)) {
-            throw new MondialRelayException('Numéro de point relais invalide');
+        // Use new strict validation
+        $relayErrors = MondialRelayValidator::validateRelayNumber($relayNumber);
+        if (!empty($relayErrors)) {
+            throw MondialRelayException::validation('Numéro de point relais invalide: '.implode(', ', $relayErrors));
         }
 
         // Format and validate data
@@ -91,41 +99,13 @@ class MondialRelayService
             'relay_country' => $recipient['country'] ?? 'FR',
         ];
 
-        // Validate before sending
-        $errors = MondialRelayHelper::validateExpeditionParams($expeditionData);
-        if (!empty($errors)) {
-            throw new MondialRelayException('Données invalides: '.implode(', ', $errors));
-        }
+        // Use new validation approach - validate individual components
+        $this->validateExpeditionData($expeditionData);
 
         return $this->client->createExpedition($expeditionData);
     }
 
-    /**
-     * Create a home delivery expedition.
-     */
-    public function createHomeDeliveryExpedition(
-        array $sender,
-        array $recipient,
-        int $weightInGrams,
-        string $deliveryMode = '24L',
-        ?string $orderNumber = null
-    ): Expedition {
-        $expeditionData = [
-            'delivery_mode' => $deliveryMode,
-            'weight' => $weightInGrams,
-            'order_number' => $orderNumber,
-            'sender' => $this->formatSenderData($sender),
-            'recipient' => $this->formatRecipientData($recipient),
-        ];
 
-        // Validate before sending
-        $errors = MondialRelayHelper::validateExpeditionParams($expeditionData);
-        if (!empty($errors)) {
-            throw new MondialRelayException('Données invalides: '.implode(', ', $errors));
-        }
-
-        return $this->client->createExpedition($expeditionData);
-    }
 
     /**
      * Get detailed tracking information.
@@ -171,6 +151,34 @@ class MondialRelayService
     }
 
     /**
+     * Generate basic tracking URL.
+     */
+    public function generateTrackingUrl(string $expeditionNumber): string
+    {
+        return $this->client->generateTrackingUrl($expeditionNumber);
+    }
+
+    /**
+     * Generate secure connect tracing link for professional extranet.
+     * Requires API V2 credentials.
+     */
+    public function generateConnectTracingLink(string $expeditionNumber, string $userLogin): string
+    {
+        return $this->client->generateConnectTracingLink($expeditionNumber, $userLogin);
+    }
+
+    /**
+     * Generate secure permalink tracing link for public tracking.
+     */
+    public function generatePermalinkTracingLink(
+        string $expeditionNumber,
+        string $language = 'fr',
+        string $country = 'fr'
+    ): string {
+        return $this->client->generatePermalinkTracingLink($expeditionNumber, $language, $country);
+    }
+
+    /**
      * Calculate shipping cost.
      */
     public function calculateShippingCost(int $weightInGrams, string $deliveryMode): float
@@ -192,10 +200,10 @@ class MondialRelayService
     private function formatSenderData(array $sender): array
     {
         return [
-            'name' => MondialRelayHelper::formatAddress($sender['name']),
-            'company' => MondialRelayHelper::formatAddress($sender['company'] ?? ''),
-            'address' => MondialRelayHelper::formatAddress($sender['address']),
-            'address_complement' => MondialRelayHelper::formatAddress($sender['address_complement'] ?? ''),
+            'line1' => MondialRelayHelper::formatAddress($sender['name'] ?? $sender['company'] ?? ''),
+            'line2' => MondialRelayHelper::formatAddress($sender['company'] ?? ''),
+            'line3' => MondialRelayHelper::formatAddress($sender['address'] ?? ''),
+            'line4' => MondialRelayHelper::formatAddress($sender['address_complement'] ?? $sender['address2'] ?? ''),
             'city' => MondialRelayHelper::formatAddress($sender['city']),
             'postal_code' => $sender['postal_code'],
             'country' => strtoupper($sender['country'] ?? 'FR'),
@@ -210,10 +218,10 @@ class MondialRelayService
     private function formatRecipientData(array $recipient): array
     {
         return [
-            'name' => MondialRelayHelper::formatAddress($recipient['name']),
-            'company' => MondialRelayHelper::formatAddress($recipient['company'] ?? ''),
-            'address' => MondialRelayHelper::formatAddress($recipient['address']),
-            'address_complement' => MondialRelayHelper::formatAddress($recipient['address_complement'] ?? ''),
+            'line1' => MondialRelayHelper::formatAddress($recipient['name'] ?? ''),
+            'line2' => MondialRelayHelper::formatAddress($recipient['company'] ?? ''),
+            'line3' => MondialRelayHelper::formatAddress($recipient['address'] ?? ''),
+            'line4' => MondialRelayHelper::formatAddress($recipient['address_complement'] ?? $recipient['address2'] ?? ''),
             'city' => MondialRelayHelper::formatAddress($recipient['city']),
             'postal_code' => $recipient['postal_code'],
             'country' => strtoupper($recipient['country'] ?? 'FR'),
@@ -250,50 +258,19 @@ class MondialRelayService
             'relay_country' => $recipient['country'] ?? 'FR',
         ];
 
-        if ($articlesDescription) {
-            $expeditionData['articles_description'] = $articlesDescription;
-        }
-
-        // Validate before sending
-        $errors = MondialRelayHelper::validateExpeditionParams($expeditionData);
-        if (!empty($errors)) {
-            throw new MondialRelayException('Données invalides: '.implode(', ', $errors));
-        }
-
-        return $this->client->createExpeditionWithLabel($expeditionData);
-    }
-
-    /**
-     * Create a home delivery expedition with PDF label.
-     */
-    public function createHomeDeliveryExpeditionWithLabel(
-        array $sender,
-        array $recipient,
-        int $weightInGrams,
-        string $deliveryMode = '24L',
-        ?string $orderNumber = null,
-        ?string $articlesDescription = null
-    ): ExpeditionWithLabel {
-        $expeditionData = [
-            'delivery_mode' => $deliveryMode,
-            'weight' => $weightInGrams,
-            'order_number' => $orderNumber,
-            'sender' => $this->formatSenderData($sender),
-            'recipient' => $this->formatRecipientData($recipient),
-        ];
+        Log::info('Expedition data: ' . json_encode($expeditionData));
 
         if ($articlesDescription) {
             $expeditionData['articles_description'] = $articlesDescription;
         }
 
-        // Validate before sending
-        $errors = MondialRelayHelper::validateExpeditionParams($expeditionData);
-        if (!empty($errors)) {
-            throw new MondialRelayException('Données invalides: '.implode(', ', $errors));
-        }
+        // Use new validation approach
+        $this->validateExpeditionData($expeditionData);
 
         return $this->client->createExpeditionWithLabel($expeditionData);
     }
+
+
 
     /**
      * Get labels for multiple expeditions.
@@ -333,5 +310,113 @@ class MondialRelayService
         $pdfUrl = $labelBatch->getPdfUrlByFormat($format);
 
         return $this->downloadLabelPdf($pdfUrl);
+    }
+
+    /**
+     * Create multi-parcel expedition.
+     */
+    public function createMultiParcelExpedition(MultiParcelExpedition $expedition): ExpeditionWithLabel
+    {
+        // Validate expedition
+        $errors = $expedition->validate();
+        if (!empty($errors)) {
+            throw new MondialRelayException('Expédition multi-colis invalide: '.implode(', ', $errors));
+        }
+
+        return $this->client->createExpeditionWithLabel($expedition->toArray());
+    }
+
+
+
+    /**
+     * Calculate total shipping cost for multi-parcel expedition.
+     */
+    public function calculateMultiParcelShippingCost(MultiParcelExpedition $expedition): float
+    {
+        $totalWeight = $expedition->getTotalBillableWeight();
+
+        return $this->calculateShippingCost($totalWeight, $expedition->getDeliveryMode());
+    }
+
+    /**
+     * Validate multi-parcel expedition without creating it.
+     */
+    public function validateMultiParcelExpedition(MultiParcelExpedition $expedition): array
+    {
+        return $expedition->validate();
+    }
+
+    /**
+     * Get multi-parcel expedition summary.
+     */
+    public function getMultiParcelSummary(MultiParcelExpedition $expedition): array
+    {
+        $summary = $expedition->getSummary();
+        $summary['estimated_cost'] = $this->calculateMultiParcelShippingCost($expedition);
+        $summary['parcel_details'] = $expedition->getParcelDetails();
+
+        return $summary;
+    }
+
+    /**
+     * Validate expedition data using new strict validation.
+     */
+    private function validateExpeditionData(array $expeditionData): void
+    {
+        $errors = [];
+
+        // Validate delivery mode
+        if (!empty($expeditionData['delivery_mode'])) {
+            $errors = array_merge($errors, MondialRelayValidator::validateDeliveryMode($expeditionData['delivery_mode']));
+        } else {
+            $errors[] = 'Mode de livraison requis';
+        }
+
+        // Validate weight
+        if (!empty($expeditionData['weight'])) {
+            $errors = array_merge($errors, MondialRelayValidator::validateWeight($expeditionData['weight']));
+        } else {
+            $errors[] = 'Poids requis';
+        }
+
+        // Validate sender address
+        if (!empty($expeditionData['sender'])) {
+            $senderErrors = MondialRelayValidator::validateAddress($expeditionData['sender'], false);
+            foreach ($senderErrors as $error) {
+                $errors[] = "Expéditeur: {$error}";
+            }
+        } else {
+            $errors[] = 'Adresse expéditeur requise';
+        }
+
+        // Validate recipient address
+        if (!empty($expeditionData['recipient'])) {
+            $recipientErrors = MondialRelayValidator::validateAddress($expeditionData['recipient'], true);
+            foreach ($recipientErrors as $error) {
+                $errors[] = "Destinataire: {$error}";
+            }
+        } else {
+            $errors[] = 'Adresse destinataire requise';
+        }
+
+        // Validate relay point for relay delivery modes
+        if (!empty($expeditionData['delivery_mode']) && MondialRelayHelper::requiresRelayPoint($expeditionData['delivery_mode'])) {
+            if (!empty($expeditionData['relay_number'])) {
+                $errors = array_merge($errors, MondialRelayValidator::validateRelayNumber($expeditionData['relay_number']));
+            } else {
+                $errors[] = 'Numéro de point relais requis pour ce mode de livraison';
+            }
+
+            if (!empty($expeditionData['relay_country'])) {
+                $errors = array_merge($errors, MondialRelayValidator::validateCountryCode($expeditionData['relay_country']));
+            } else {
+                $errors[] = 'Pays du point relais requis pour ce mode de livraison';
+            }
+        }
+
+        if (!empty($errors)) {
+            Log::error('Validation errors: ' . json_encode($errors));
+            throw MondialRelayException::validation('Données d\'expédition invalides', $errors);
+        }
     }
 }

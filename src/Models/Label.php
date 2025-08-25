@@ -3,12 +3,11 @@
 namespace Bmwsly\MondialRelayApi\Models;
 
 /**
- * Modèle représentant une étiquette PDF Mondial Relay
+ * Modèle représentant une étiquette PDF Mondial Relay.
  *
  * Ce modèle contient les URLs de téléchargement des étiquettes PDF
  * dans les différents formats supportés par Mondial Relay.
  *
- * @package Bmwsly\MondialRelayApi\Models
  * @author Bryan Meurisse
  * @version 1.1.0
  */
@@ -59,7 +58,7 @@ class Label
     }
 
     /**
-     * Retourne l'URL de téléchargement pour le format demandé
+     * Retourne l'URL de téléchargement pour le format demandé.
      *
      * @param string $format Format demandé ('A4', 'A5', '10x15')
      * @return string URL de téléchargement de l'étiquette PDF
@@ -80,7 +79,7 @@ class Label
     }
 
     /**
-     * Retourne la liste des formats d'étiquettes disponibles
+     * Retourne la liste des formats d'étiquettes disponibles.
      *
      * @return array Liste des formats supportés
      */
@@ -90,7 +89,7 @@ class Label
     }
 
     /**
-     * Vérifie si un format d'étiquette est supporté
+     * Vérifie si un format d'étiquette est supporté.
      *
      * @param string $format Format à vérifier
      * @return bool true si le format est supporté
@@ -101,7 +100,7 @@ class Label
     }
 
     /**
-     * Retourne toutes les URLs d'étiquettes dans un tableau associatif
+     * Retourne toutes les URLs d'étiquettes dans un tableau associatif.
      *
      * @return array Tableau [format => url] pour tous les formats
      */
@@ -115,7 +114,7 @@ class Label
     }
 
     /**
-     * Retourne des informations sur les formats d'étiquettes
+     * Retourne des informations sur les formats d'étiquettes.
      *
      * @return array Informations détaillées sur chaque format
      */
@@ -126,20 +125,20 @@ class Label
                 'name' => 'A4',
                 'description' => 'Format A4 standard (210x297mm)',
                 'url' => $this->labelUrlA4,
-                'recommended_for' => 'Impression bureau standard'
+                'recommended_for' => 'Impression bureau standard',
             ],
             'A5' => [
                 'name' => 'A5',
                 'description' => 'Format A5 compact (148x210mm)',
                 'url' => $this->labelUrlA5,
-                'recommended_for' => 'Économie de papier'
+                'recommended_for' => 'Économie de papier',
             ],
             '10x15' => [
                 'name' => '10x15',
                 'description' => 'Format 10x15cm compact',
                 'url' => $this->labelUrl10x15,
-                'recommended_for' => 'Étiquettes compactes, impression photo'
-            ]
+                'recommended_for' => 'Étiquettes compactes, impression photo',
+            ],
         ];
     }
 }

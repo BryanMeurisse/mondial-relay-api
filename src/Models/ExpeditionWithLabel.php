@@ -3,13 +3,12 @@
 namespace Bmwsly\MondialRelayApi\Models;
 
 /**
- * Modèle représentant une expédition avec étiquette PDF
+ * Modèle représentant une expédition avec étiquette PDF.
  *
  * Ce modèle combine une expédition et son étiquette PDF générée.
  * Il permet de télécharger directement l'étiquette dans différents formats
  * et d'accéder aux informations de suivi.
  *
- * @package Bmwsly\MondialRelayApi\Models
  * @author Bryan Meurisse
  * @version 1.1.0
  */
@@ -45,7 +44,7 @@ class ExpeditionWithLabel
     }
 
     /**
-     * Génère l'URL publique de suivi du colis
+     * Génère l'URL publique de suivi du colis.
      *
      * @return string URL de suivi Mondial Relay
      */
@@ -55,7 +54,7 @@ class ExpeditionWithLabel
     }
 
     /**
-     * Retourne l'URL de téléchargement de l'étiquette dans le format demandé
+     * Retourne l'URL de téléchargement de l'étiquette dans le format demandé.
      *
      * @param string $format Format de l'étiquette ('A4', 'A5', '10x15')
      * @return string URL de téléchargement de l'étiquette PDF
@@ -66,7 +65,7 @@ class ExpeditionWithLabel
     }
 
     /**
-     * Télécharge directement le contenu PDF de l'étiquette
+     * Télécharge directement le contenu PDF de l'étiquette.
      *
      * Cette méthode télécharge l'étiquette PDF depuis les serveurs Mondial Relay
      * et retourne le contenu binaire du fichier PDF.
@@ -101,7 +100,7 @@ class ExpeditionWithLabel
     }
 
     /**
-     * Sauvegarde l'étiquette PDF dans un fichier
+     * Sauvegarde l'étiquette PDF dans un fichier.
      *
      * @param string $filename Nom du fichier de destination
      * @param string $format Format de l'étiquette ('A4', 'A5', '10x15')
@@ -125,7 +124,7 @@ class ExpeditionWithLabel
     }
 
     /**
-     * Retourne tous les formats d'étiquettes disponibles avec leurs URLs
+     * Retourne tous les formats d'étiquettes disponibles avec leurs URLs.
      *
      * @return array Tableau associatif [format => url]
      */

@@ -3,13 +3,12 @@
 namespace Bmwsly\MondialRelayApi\Models;
 
 /**
- * Modèle représentant une expédition Mondial Relay
+ * Modèle représentant une expédition Mondial Relay.
  *
  * Ce modèle contient les informations de base d'une expédition créée
  * via l'API Mondial Relay. Le numéro d'expédition est l'élément clé
  * pour le suivi et la gestion des colis.
  *
- * @package Bmwsly\MondialRelayApi\Models
  * @author Bryan Meurisse
  * @version 1.1.0
  */
@@ -66,7 +65,7 @@ class Expedition
     }
 
     /**
-     * Génère l'URL publique de suivi du colis
+     * Génère l'URL publique de suivi du colis.
      *
      * @return string URL de suivi Mondial Relay
      */
@@ -76,7 +75,7 @@ class Expedition
     }
 
     /**
-     * Retourne le libellé français du mode de livraison
+     * Retourne le libellé français du mode de livraison.
      *
      * @return string Description du mode de livraison
      */
@@ -95,7 +94,7 @@ class Expedition
     }
 
     /**
-     * Vérifie si la livraison se fait en point relais
+     * Vérifie si la livraison se fait en point relais.
      *
      * @return bool true si livraison en point relais
      */
@@ -105,7 +104,7 @@ class Expedition
     }
 
     /**
-     * Vérifie si la livraison se fait à domicile
+     * Vérifie si la livraison se fait à domicile.
      *
      * @return bool true si livraison à domicile
      */
