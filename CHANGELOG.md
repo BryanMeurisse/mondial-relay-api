@@ -2,6 +2,70 @@
 
 All notable changes to `mondial-relay-api` will be documented in this file.
 
+## [1.4.0] - 2025-09-13
+
+### 🔍 Major Improvement: Enhanced Error Handling and Debugging
+
+This release completely resolves the issue where API errors returned unhelpful "Erreur inconnue" messages.
+
+### Added
+- **Detailed error messages** with full context (method, parameters, enseigne)
+- **Enhanced MondialRelayException** with debugging methods:
+  - `getDebugInfo()` method for comprehensive error analysis
+  - `isApiError()` method to identify API-related errors
+  - Context preservation throughout error chains
+- **Separate exception handling** for SoapFault, API errors, and generic exceptions
+- **Structured error context** for logging and monitoring
+- **New test suite** for detailed error handling (5 tests, 34 assertions)
+- **Complete debugging guide** (`DEBUG-ERROR-HANDLING.md`)
+- **Test scripts** for real-world error scenarios
+
+### Changed
+- **Error message format** from generic to detailed:
+  - Before: `"Erreur inconnue"`
+  - After: `"Ville inconnue ou non unique (Méthode: searchRelayPoints) - Code postal: 99999 - Pays: FR - Enseigne: CC23KDJZ [Code erreur API: 9]"`
+- **Exception handling** in `MondialRelayClient` methods with better categorization
+- **Error context** now includes method names, parameters, and technical details
+
+### Fixed
+- **Generic error messages** replaced with specific, actionable information
+- **Lost error context** now preserved throughout the exception chain
+- **Debugging difficulties** resolved with comprehensive error information
+
+## [1.3.0] - 2025-09-13
+
+### 🎉 Major Release: Complete API Import with Secure Tracking Links
+
+### Added
+- **Secure tracking links** functionality:
+  - `generateConnectTracingLink()` for professional extranet access
+  - `generatePermalinkTracingLink()` for public tracking pages
+  - MD5 security hash generation with timestamps
+  - Multi-language support (fr, en, etc.)
+- **Hybrid client** supporting both SOAP and REST APIs
+- **Multi-parcel expedition** management system
+- **Advanced validation system** with comprehensive parameter checking
+- **Debug and diagnostic tools**:
+  - `MondialRelayDebugger` for detailed logging
+  - `php artisan mondialrelay:diagnose` command
+  - Connectivity testing tools
+- **Configuration management system** with environment variables
+
+### Enhanced
+- **Modern Laravel architecture** with proper service providers and facades
+- **Security improvements** with MD5 hashing and credential protection
+- **Code quality** with PSR standards and PHP-CS-Fixer formatting
+- **Test coverage** with 74+ comprehensive tests
+- **Documentation** with complete API reference and examples
+
+### Added Configuration
+```env
+MONDIAL_RELAY_BRAND_ID=11
+MONDIAL_RELAY_API_V2_ENABLED=true
+MONDIAL_RELAY_API_V2_USER=your_user
+MONDIAL_RELAY_API_V2_PASSWORD=your_password
+```
+
 ## [1.2.0] - 2025-08-24
 
 ### Removed
