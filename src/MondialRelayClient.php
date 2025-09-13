@@ -250,14 +250,46 @@ class MondialRelayClient
             $response = $response->WSI2_CreationEtiquetteResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'createExpeditionWithLabel']);
+                throw MondialRelayException::fromApiResponse((array) $response, [
+                    'method' => 'createExpeditionWithLabel',
+                    'params' => $expeditionParams,
+                    'enseigne' => $this->enseigne,
+                    'articles_description' => $params['articles_description'] ?? null,
+                    'delivery_mode' => $params['delivery_mode'] ?? null,
+                    'weight' => $params['weight'] ?? null,
+                ]);
             }
 
             $baseUrl = str_replace('/Web_Services.asmx', '', $this->apiUrl);
 
             return ExpeditionWithLabel::fromApiResponse($response, $baseUrl);
+        } catch (MondialRelayException $e) {
+            throw $e;
+        } catch (\SoapFault $e) {
+            throw new MondialRelayException(
+                'SOAP API Error during expedition with label creation: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'createExpeditionWithLabel',
+                    'params' => $expeditionParams,
+                    'enseigne' => $this->enseigne,
+                    'soap_fault_code' => $e->faultcode ?? null,
+                    'soap_fault_string' => $e->faultstring ?? null,
+                ]
+            );
         } catch (\Exception $e) {
-            throw new MondialRelayException('API call failed: '.$e->getMessage());
+            throw new MondialRelayException(
+                'Unexpected error during expedition with label creation: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'createExpeditionWithLabel',
+                    'params' => $expeditionParams,
+                    'enseigne' => $this->enseigne,
+                    'exception_type' => get_class($e),
+                ]
+            );
         }
     }
 
@@ -283,14 +315,47 @@ class MondialRelayClient
             $response = $response->WSI3_GetEtiquettesResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'getLabelBatch']);
+                throw MondialRelayException::fromApiResponse((array) $response, [
+                    'method' => 'getLabelBatch',
+                    'params' => $labelParams,
+                    'enseigne' => $this->enseigne,
+                    'expedition_numbers' => $expeditionNumbers,
+                    'expedition_count' => count($expeditionNumbers),
+                ]);
             }
 
             $baseUrl = str_replace('/Web_Services.asmx', '', $this->apiUrl);
 
             return LabelBatch::fromApiResponse($expeditionNumbers, $response, $baseUrl);
+        } catch (MondialRelayException $e) {
+            throw $e;
+        } catch (\SoapFault $e) {
+            throw new MondialRelayException(
+                'SOAP API Error during label batch retrieval: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'getLabelBatch',
+                    'params' => $labelParams,
+                    'enseigne' => $this->enseigne,
+                    'expedition_numbers' => $expeditionNumbers,
+                    'soap_fault_code' => $e->faultcode ?? null,
+                    'soap_fault_string' => $e->faultstring ?? null,
+                ]
+            );
         } catch (\Exception $e) {
-            throw new MondialRelayException('API call failed: '.$e->getMessage());
+            throw new MondialRelayException(
+                'Unexpected error during label batch retrieval: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'getLabelBatch',
+                    'params' => $labelParams,
+                    'enseigne' => $this->enseigne,
+                    'expedition_numbers' => $expeditionNumbers,
+                    'exception_type' => get_class($e),
+                ]
+            );
         }
     }
 
@@ -333,12 +398,44 @@ class MondialRelayClient
             $response = $response->WSI2_TracingColisDetailleResult ?? $response;
 
             if ($response->STAT !== '0' && !in_array($response->STAT, ['80', '81', '82', '83'])) {
-                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'trackPackage']);
+                throw MondialRelayException::fromApiResponse((array) $response, [
+                    'method' => 'trackPackage',
+                    'params' => $trackingParams,
+                    'enseigne' => $this->enseigne,
+                    'expedition_number' => $expeditionNumber,
+                ]);
             }
 
             return TrackingInfo::fromApiResponse($response);
+        } catch (MondialRelayException $e) {
+            throw $e;
+        } catch (\SoapFault $e) {
+            throw new MondialRelayException(
+                'SOAP API Error during package tracking: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'trackPackage',
+                    'params' => $trackingParams,
+                    'enseigne' => $this->enseigne,
+                    'expedition_number' => $expeditionNumber,
+                    'soap_fault_code' => $e->faultcode ?? null,
+                    'soap_fault_string' => $e->faultstring ?? null,
+                ]
+            );
         } catch (\Exception $e) {
-            throw new MondialRelayException('API call failed: '.$e->getMessage());
+            throw new MondialRelayException(
+                'Unexpected error during package tracking: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'trackPackage',
+                    'params' => $trackingParams,
+                    'enseigne' => $this->enseigne,
+                    'expedition_number' => $expeditionNumber,
+                    'exception_type' => get_class($e),
+                ]
+            );
         }
     }
 

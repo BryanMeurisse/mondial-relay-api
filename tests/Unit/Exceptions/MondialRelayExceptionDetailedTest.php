@@ -94,7 +94,7 @@ class MondialRelayExceptionDetailedTest extends TestCase
         $response = [
             'STAT' => '10',
         ];
-        
+
         $context = [
             'method' => 'createExpedition',
             'params' => ['test' => 'value'],
@@ -111,10 +111,37 @@ class MondialRelayExceptionDetailedTest extends TestCase
         $this->assertArrayHasKey('api_error_code', $exceptionContext);
         $this->assertArrayHasKey('base_message', $exceptionContext);
         $this->assertArrayHasKey('timestamp', $exceptionContext);
-        
+
         $this->assertEquals('createExpedition', $exceptionContext['method']);
         $this->assertEquals(['test' => 'value'], $exceptionContext['params']);
         $this->assertEquals('CC23KDJZ', $exceptionContext['enseigne']);
         $this->assertEquals(10, $exceptionContext['api_error_code']);
+    }
+
+    public function test_error_code_92_handling()
+    {
+        $response = [
+            'STAT' => '92',
+        ];
+
+        $context = [
+            'method' => 'createExpeditionWithLabel',
+            'enseigne' => 'CC23KDJZ',
+            'delivery_mode' => '24R',
+            'weight' => '1000',
+        ];
+
+        $exception = MondialRelayException::fromApiResponse($response, $context);
+
+        $this->assertEquals(92, $exception->getCode());
+        $this->assertStringContainsString('Erreur lors de la génération de l\'étiquette ou du traitement de l\'expédition', $exception->getMessage());
+        $this->assertStringContainsString('Méthode: createExpeditionWithLabel', $exception->getMessage());
+        $this->assertStringContainsString('Enseigne: CC23KDJZ', $exception->getMessage());
+        $this->assertStringContainsString('[Code erreur API: 92]', $exception->getMessage());
+        $this->assertTrue($exception->isApiError());
+
+        $context = $exception->getContext();
+        $this->assertEquals('Erreur lors de la génération de l\'étiquette ou du traitement de l\'expédition', $context['base_message']);
+        $this->assertEquals(92, $context['api_error_code']);
     }
 }
