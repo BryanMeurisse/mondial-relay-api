@@ -80,14 +80,46 @@ class MondialRelayClient
             $response = $response->WSI4_PointRelais_RechercheResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'searchRelayPoints']);
+                throw MondialRelayException::fromApiResponse((array) $response, [
+                    'method' => 'searchRelayPoints',
+                    'params' => $searchParams,
+                    'enseigne' => $this->enseigne,
+                    'postal_code' => $params['postal_code'] ?? '',
+                    'country' => $params['country'] ?? 'FR'
+                ]);
             }
 
             $relayPoints = $this->formatRelayPoints($response);
 
             return $relayPoints;
+        } catch (MondialRelayException $e) {
+            // Re-throw MondialRelayException with full context
+            throw $e;
+        } catch (\SoapFault $e) {
+            throw new MondialRelayException(
+                'SOAP API Error: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'searchRelayPoints',
+                    'params' => $searchParams,
+                    'enseigne' => $this->enseigne,
+                    'soap_fault_code' => $e->faultcode ?? null,
+                    'soap_fault_string' => $e->faultstring ?? null,
+                ]
+            );
         } catch (\Exception $e) {
-            throw new MondialRelayException('API call failed: '.$e->getMessage());
+            throw new MondialRelayException(
+                'Unexpected error during relay points search: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'searchRelayPoints',
+                    'params' => $searchParams,
+                    'enseigne' => $this->enseigne,
+                    'exception_type' => get_class($e),
+                ]
+            );
         }
     }
 
@@ -160,12 +192,41 @@ class MondialRelayClient
             $response = $response->WSI2_CreationExpeditionResult ?? $response;
 
             if ($response->STAT !== '0') {
-                throw MondialRelayException::fromApiResponse((array) $response, ['method' => 'createExpedition']);
+                throw MondialRelayException::fromApiResponse((array) $response, [
+                    'method' => 'createExpedition',
+                    'params' => $expeditionParams,
+                    'enseigne' => $this->enseigne,
+                ]);
             }
 
             return Expedition::fromApiResponse($response);
+        } catch (MondialRelayException $e) {
+            throw $e;
+        } catch (\SoapFault $e) {
+            throw new MondialRelayException(
+                'SOAP API Error during expedition creation: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'createExpedition',
+                    'params' => $expeditionParams,
+                    'enseigne' => $this->enseigne,
+                    'soap_fault_code' => $e->faultcode ?? null,
+                    'soap_fault_string' => $e->faultstring ?? null,
+                ]
+            );
         } catch (\Exception $e) {
-            throw new MondialRelayException('API call failed: '.$e->getMessage());
+            throw new MondialRelayException(
+                'Unexpected error during expedition creation: ' . $e->getMessage(),
+                $e->getCode(),
+                $e,
+                [
+                    'method' => 'createExpedition',
+                    'params' => $expeditionParams,
+                    'enseigne' => $this->enseigne,
+                    'exception_type' => get_class($e),
+                ]
+            );
         }
     }
 

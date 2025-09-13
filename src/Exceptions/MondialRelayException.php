@@ -267,10 +267,38 @@ class MondialRelayException extends Exception
     public static function fromApiResponse(array $response, array $context = []): self
     {
         $code = (int) ($response['STAT'] ?? $response['code'] ?? 0);
-        $message = self::getErrorCodes()[$code] ?? 'Erreur inconnue';
+        $baseMessage = self::getErrorCodes()[$code] ?? 'Erreur inconnue';
 
-        return new self($message, $code, null, array_merge($context, [
+        // Build detailed error message with context
+        $detailedMessage = $baseMessage;
+
+        // Add method context if available
+        if (isset($context['method'])) {
+            $detailedMessage .= " (Méthode: {$context['method']})";
+        }
+
+        // Add specific parameter context for better debugging
+        if (isset($context['postal_code'])) {
+            $detailedMessage .= " - Code postal: {$context['postal_code']}";
+        }
+
+        if (isset($context['country'])) {
+            $detailedMessage .= " - Pays: {$context['country']}";
+        }
+
+        if (isset($context['enseigne'])) {
+            $detailedMessage .= " - Enseigne: {$context['enseigne']}";
+        }
+
+        // Add API response details for debugging
+        if ($code !== 0) {
+            $detailedMessage .= " [Code erreur API: {$code}]";
+        }
+
+        return new self($detailedMessage, $code, null, array_merge($context, [
             'api_response' => $response,
+            'api_error_code' => $code,
+            'base_message' => $baseMessage,
             'timestamp' => now()->toISOString(),
         ]));
     }
@@ -284,6 +312,29 @@ class MondialRelayException extends Exception
             'validation_errors' => $errors,
             'timestamp' => now()->toISOString(),
         ]);
+    }
+
+    /**
+     * Get detailed debug information about the error.
+     */
+    public function getDebugInfo(): array
+    {
+        return [
+            'message' => $this->getMessage(),
+            'code' => $this->getCode(),
+            'context' => $this->getContext(),
+            'file' => $this->getFile(),
+            'line' => $this->getLine(),
+            'trace' => $this->getTraceAsString(),
+        ];
+    }
+
+    /**
+     * Check if this is an API-related error.
+     */
+    public function isApiError(): bool
+    {
+        return isset($this->context['api_response']) || isset($this->context['api_error_code']);
     }
 
     /**
